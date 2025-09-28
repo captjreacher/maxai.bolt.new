@@ -2,6 +2,7 @@ import type { AppLoadContext, EntryContext } from '@remix-run/cloudflare';
 import { RemixServer } from '@remix-run/react';
 import { isbot } from 'isbot';
 import ReactDOMServer from 'react-dom/server';
+import * as ReactDOMServerBrowser from 'react-dom/server.browser';
 import { renderHeadToString } from 'remix-island';
 import { Head } from './root';
 import { themeStore } from '~/lib/stores/theme';
@@ -13,8 +14,14 @@ export default async function handleRequest(
   remixContext: EntryContext,
   _loadContext: AppLoadContext,
 ) {
-  const { renderToReadableStream } =
-    ReactDOMServer as typeof import('react-dom/server');
+  const serverExports = ReactDOMServer as typeof import('react-dom/server');
+  const browserServerExports =
+    ReactDOMServerBrowser as typeof import('react-dom/server.browser');
+
+  const renderToReadableStream =
+    typeof serverExports.renderToReadableStream === 'function'
+      ? serverExports.renderToReadableStream
+      : browserServerExports.renderToReadableStream;
 
   const readable = await renderToReadableStream(
     <RemixServer context={remixContext} url={request.url} />,
