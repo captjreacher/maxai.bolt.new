@@ -1,8 +1,8 @@
 // app/root.tsx
 import type { LinksFunction } from "@remix-run/cloudflare";
 import {
-  Meta,
   Links,
+  Meta,
   Outlet,
   Scripts,
   ScrollRestoration,
@@ -37,3 +37,39 @@ export default function App() {
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
+    <html lang="en" data-theme={DEFAULT_THEME}>
+      <head>
+        <Meta />
+        <Links />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="min-h-dvh bg-neutral-950 text-white antialiased">
+        <div id="root" className="h-full w-full">
+          {children}
+        </div>
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let message = "Something went wrong";
+
+  if (isRouteErrorResponse(error)) {
+    message = `${error.status} ${error.statusText}`;
+  } else if (error instanceof Error) {
+    message = error.message;
+  }
+
+  return (
+    <Layout>
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+        <h1 className="text-2xl font-semibold">Application error</h1>
+        <p className="max-w-lg text-balance text-neutral-300">{message}</p>
+      </div>
+    </Layout>
+  );
+}
