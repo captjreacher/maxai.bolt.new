@@ -13,7 +13,10 @@ export default async function handleRequest(
   remixContext: EntryContext,
   _loadContext: AppLoadContext,
 ) {
-  const readable = await ReactDOMServer.renderToReadableStream(
+  const { renderToReadableStream } =
+    ReactDOMServer as typeof import('react-dom/server');
+
+  const readable = await renderToReadableStream(
     <RemixServer context={remixContext} url={request.url} />,
     {
       signal: request.signal,
