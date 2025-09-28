@@ -17,15 +17,10 @@ export function Head() {
 
 export default function App() {
   return (
-    <html lang="en">
-      <head>
-        <Head />
-      </head>
-      <body className="min-h-dvh bg-neutral-950 text-white antialiased">
-        <Outlet />
-        <ScrollRestoration />
-        <Scripts />
-      </body>
-    </html>
+    <>
+      <Outlet />
+      <ScrollRestoration />
+      <Scripts />
+    </>
   );
 }
