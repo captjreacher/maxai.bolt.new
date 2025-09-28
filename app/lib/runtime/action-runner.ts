@@ -1,6 +1,6 @@
 import { WebContainer } from '@webcontainer/api';
 import { map, type MapStore } from 'nanostores';
-import * as nodePath from 'node:path';
+import * as nodePath from 'path';
 import type { BoltAction } from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
@@ -184,3 +184,4 @@ export class ActionRunner {
     this.actions.setKey(id, { ...actions[id], ...newState });
   }
 }
+
