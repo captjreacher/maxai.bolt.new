@@ -41,7 +41,7 @@ export default async function handleRequest(
       controller.enqueue(
         new Uint8Array(
           new TextEncoder().encode(
-            `<!DOCTYPE html><html lang="en" data-theme="${themeStore.value}"><head>${head}</head><body><div id="root" class="w-full h-full">`,
+            `<!DOCTYPE html><html lang="en" data-theme="${themeStore.value}"><head>${head}</head><body class="min-h-dvh bg-neutral-950 text-white antialiased"><div id="root" class="w-full h-full">`,
           ),
         ),
       );
