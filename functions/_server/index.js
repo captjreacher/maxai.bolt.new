@@ -1,9 +1,8 @@
-import { jsxs, Fragment, jsx } from 'react/jsx-runtime';
-import { Outlet, ScrollRestoration, Scripts, Meta, Links, RemixServer } from '@remix-run/react';
+import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+import { RemixServer, Outlet, Meta, Links, ScrollRestoration, Scripts, useRouteError, isRouteErrorResponse } from '@remix-run/react';
 import { isbot } from 'isbot';
 import ReactDOMServer from 'react-dom/server';
 import * as ReactDOMServerBrowser from 'react-dom/server.browser';
-import { renderHeadToString } from 'remix-island';
 import { atom, map } from 'nanostores';
 import { json } from '@remix-run/cloudflare';
 import { streamText as streamText$1, convertToCoreMessages, parseStreamPart, StreamingTextResponse } from 'ai';
@@ -13,46 +12,6 @@ import { defaultSchema } from 'rehype-sanitize';
 import { ClientOnly } from 'remix-utils/client-only';
 import React, { memo } from 'react';
 import { useStore } from '@nanostores/react';
-
-const kTheme = "bolt_theme";
-const DEFAULT_THEME = "light";
-const themeStore = atom(initStore());
-function initStore() {
-  return DEFAULT_THEME;
-}
-
-const themeInitScript = `(() => {
-  try {
-    const storedTheme = localStorage.getItem(${JSON.stringify(kTheme)});
-    if (storedTheme) {
-      document.documentElement.setAttribute('data-theme', storedTheme);
-    }
-  } catch {}
-})();`;
-const links = () => [
-  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" }
-];
-function Head() {
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
-    /* @__PURE__ */ jsx(Meta, {}),
-    /* @__PURE__ */ jsx(Links, {}),
-    /* @__PURE__ */ jsx("script", { dangerouslySetInnerHTML: { __html: themeInitScript } })
-  ] });
-}
-function App() {
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
-    /* @__PURE__ */ jsx(Outlet, {}),
-    /* @__PURE__ */ jsx(ScrollRestoration, {}),
-    /* @__PURE__ */ jsx(Scripts, {})
-  ] });
-}
-
-const route0 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  Head,
-  default: App,
-  links
-}, Symbol.toStringTag, { value: 'Module' }));
 
 async function handleRequest(request, responseStatusCode, responseHeaders, remixContext, _loadContext) {
   const serverExports = ReactDOMServer;
@@ -68,44 +27,13 @@ async function handleRequest(request, responseStatusCode, responseHeaders, remix
       }
     }
   );
-  const body = new ReadableStream({
-    start(controller) {
-      const head = renderHeadToString({ request, remixContext, Head });
-      controller.enqueue(
-        new Uint8Array(
-          new TextEncoder().encode(
-            `<!DOCTYPE html><html lang="en" data-theme="${themeStore.value}"><head>${head}</head><body class="min-h-dvh bg-neutral-950 text-white antialiased"><div id="root" class="w-full h-full">`
-          )
-        )
-      );
-      const reader = readable.getReader();
-      function read() {
-        reader.read().then(({ done, value }) => {
-          if (done) {
-            controller.enqueue(new Uint8Array(new TextEncoder().encode(`</div></body></html>`)));
-            controller.close();
-            return;
-          }
-          controller.enqueue(value);
-          read();
-        }).catch((error) => {
-          controller.error(error);
-          readable.cancel();
-        });
-      }
-      read();
-    },
-    cancel() {
-      readable.cancel();
-    }
-  });
   if (isbot(request.headers.get("user-agent") || "")) {
     await readable.allReady;
   }
   responseHeaders.set("Content-Type", "text/html");
   responseHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
   responseHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
-  return new Response(body, {
+  return new Response(readable, {
     headers: responseHeaders,
     status: responseStatusCode
   });
@@ -114,6 +42,63 @@ async function handleRequest(request, responseStatusCode, responseHeaders, remix
 const entryServer = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: handleRequest
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const kTheme = "bolt_theme";
+const DEFAULT_THEME = "light";
+atom(initStore());
+function initStore() {
+  return DEFAULT_THEME;
+}
+
+const themeInitScript = `(() => {
+  try {
+    const storedTheme = localStorage.getItem(${JSON.stringify(kTheme)});
+    if (storedTheme) {
+      document.documentElement.setAttribute('data-theme', storedTheme);
+    }
+  } catch {}
+})();`;
+const links = () => [
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" }
+];
+function App() {
+  return /* @__PURE__ */ jsx(Outlet, {});
+}
+function Layout({ children }) {
+  return /* @__PURE__ */ jsxs("html", { lang: "en", "data-theme": DEFAULT_THEME, children: [
+    /* @__PURE__ */ jsxs("head", { children: [
+      /* @__PURE__ */ jsx(Meta, {}),
+      /* @__PURE__ */ jsx(Links, {}),
+      /* @__PURE__ */ jsx("script", { dangerouslySetInnerHTML: { __html: themeInitScript } })
+    ] }),
+    /* @__PURE__ */ jsxs("body", { className: "min-h-dvh bg-neutral-950 text-white antialiased", children: [
+      /* @__PURE__ */ jsx("div", { id: "root", className: "h-full w-full", children }),
+      /* @__PURE__ */ jsx(ScrollRestoration, {}),
+      /* @__PURE__ */ jsx(Scripts, {})
+    ] })
+  ] });
+}
+function ErrorBoundary() {
+  const error = useRouteError();
+  let message = "Something went wrong";
+  if (isRouteErrorResponse(error)) {
+    message = `${error.status} ${error.statusText}`;
+  } else if (error instanceof Error) {
+    message = error.message;
+  }
+  return /* @__PURE__ */ jsx(Layout, { children: /* @__PURE__ */ jsxs("div", { className: "flex h-full flex-col items-center justify-center gap-2 p-6 text-center", children: [
+    /* @__PURE__ */ jsx("h1", { className: "text-2xl font-semibold", children: "Application error" }),
+    /* @__PURE__ */ jsx("p", { className: "max-w-lg text-balance text-neutral-300", children: message })
+  ] }) });
+}
+
+const route0 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  ErrorBoundary,
+  Layout,
+  default: App,
+  links
 }, Symbol.toStringTag, { value: 'Module' }));
 
 function getAPIKey(cloudflareEnv) {
@@ -992,7 +977,7 @@ const route3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   loader
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const serverManifest = {'entry':{'module':'/assets/entry.client-CaYW3QHs.js','imports':['/assets/components-DCdkgeb6.js'],'css':['/assets/__uno-D5utbcWA.css']},'routes':{'root':{'id':'root','parentId':undefined,'path':'','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/root-B9HAWh13.js','imports':['/assets/components-DCdkgeb6.js','/assets/theme-BD2Iu4z3.js'],'css':['/assets/__uno-D5utbcWA.css']},'routes/api.enhancer':{'id':'routes/api.enhancer','parentId':'root','path':'api/enhancer','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/api.enhancer-l0sNRNKZ.js','imports':[],'css':[]},'routes/app.chat':{'id':'routes/app.chat','parentId':'root','path':'app/chat','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/app.chat-l0sNRNKZ.js','imports':[],'css':[]},'routes/chat.$id':{'id':'routes/chat.$id','parentId':'root','path':'chat/:id','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/chat._id-BbvYocFx.js','imports':['/assets/components-DCdkgeb6.js','/assets/theme-BD2Iu4z3.js','/assets/_index-DeJ4qdO3.js'],'css':['/assets/_index-C3nBTdmK.css']},'routes/_index':{'id':'routes/_index','parentId':'root','path':undefined,'index':true,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/_index-tCCsp1PN.js','imports':['/assets/components-DCdkgeb6.js','/assets/theme-BD2Iu4z3.js','/assets/_index-DeJ4qdO3.js'],'css':['/assets/_index-C3nBTdmK.css']}},'url':'/assets/manifest-b9eadaaf.js','version':'b9eadaaf'};
+const serverManifest = {'entry':{'module':'/assets/entry.client-CjSHOzOP.js','imports':['/assets/components-DfjO86aM.js'],'css':['/assets/__uno-SwipgEyW.css']},'routes':{'root':{'id':'root','parentId':undefined,'path':'','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':true,'module':'/assets/root-B9nMHUOm.js','imports':['/assets/components-DfjO86aM.js','/assets/theme-B3J57z1v.js'],'css':['/assets/__uno-SwipgEyW.css']},'routes/api.enhancer':{'id':'routes/api.enhancer','parentId':'root','path':'api/enhancer','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/api.enhancer-l0sNRNKZ.js','imports':[],'css':[]},'routes/app.chat':{'id':'routes/app.chat','parentId':'root','path':'app/chat','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/app.chat-l0sNRNKZ.js','imports':[],'css':[]},'routes/chat.$id':{'id':'routes/chat.$id','parentId':'root','path':'chat/:id','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/chat._id-Nq5aHB0q.js','imports':['/assets/components-DfjO86aM.js','/assets/theme-B3J57z1v.js','/assets/_index-CJJe-0Nq.js'],'css':['/assets/_index-C3nBTdmK.css']},'routes/_index':{'id':'routes/_index','parentId':'root','path':undefined,'index':true,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/_index-D8GfRUro.js','imports':['/assets/components-DfjO86aM.js','/assets/theme-B3J57z1v.js','/assets/_index-CJJe-0Nq.js'],'css':['/assets/_index-C3nBTdmK.css']}},'url':'/assets/manifest-beaf6609.js','version':'beaf6609'};
 
 /**
        * `mode` is only relevant for the old Remix compiler but

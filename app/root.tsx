@@ -1,12 +1,21 @@
 // app/root.tsx
 import type { LinksFunction } from "@remix-run/cloudflare";
-import { Meta, Links, Outlet, Scripts, ScrollRestoration } from "@remix-run/react";
+import {
+  Meta,
+  Links,
+  Outlet,
+  Scripts,
+  ScrollRestoration,
+  isRouteErrorResponse,
+  useRouteError,
+} from "@remix-run/react";
+import type { ReactNode } from "react";
 
 // Side-effect CSS imports (keep these; no ?url)
 import "@unocss/reset/tailwind.css";
 import "virtual:uno.css";
 
-import { kTheme } from "~/lib/stores/theme";
+import { DEFAULT_THEME, kTheme } from "~/lib/stores/theme";
 
 const themeInitScript = `(() => {
   try {
@@ -22,22 +31,9 @@ export const links: LinksFunction = () => [
 ];
 
 // 👇 This is what entry.server.tsx expects to exist
-export function Head() {
-  return (
-    <>
-      <Meta />
-      <Links />
-      <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-    </>
-  );
+export default function App() {
+  return <Outlet />;
 }
 
-export default function App() {
+export function Layout({ children }: { children: ReactNode }) {
   return (
-    <>
-      <Outlet />
-      <ScrollRestoration />
-      <Scripts />
-    </>
-  );
-}
