@@ -1,8 +1,8 @@
-import { jsxs, jsx, Fragment } from 'react/jsx-runtime';
-import { Outlet, ScrollRestoration, Scripts, Meta, Links, RemixServer } from '@remix-run/react';
+import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+import { RemixServer, Outlet, Meta, Links, ScrollRestoration, Scripts, useRouteError, isRouteErrorResponse } from '@remix-run/react';
 import { isbot } from 'isbot';
-import { renderToReadableStream } from 'react-dom/server';
-import { renderHeadToString } from 'remix-island';
+import ReactDOMServer from 'react-dom/server';
+import * as ReactDOMServerBrowser from 'react-dom/server.browser';
 import { atom, map } from 'nanostores';
 import { json } from '@remix-run/cloudflare';
 import { streamText as streamText$1, convertToCoreMessages, parseStreamPart, StreamingTextResponse } from 'ai';
@@ -13,81 +13,27 @@ import { ClientOnly } from 'remix-utils/client-only';
 import React, { memo } from 'react';
 import { useStore } from '@nanostores/react';
 
-function Head() {
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
-    /* @__PURE__ */ jsx(Meta, {}),
-    /* @__PURE__ */ jsx(Links, {})
-  ] });
-}
-function App() {
-  return /* @__PURE__ */ jsxs("html", { lang: "en", children: [
-    /* @__PURE__ */ jsx("head", { children: /* @__PURE__ */ jsx(Head, {}) }),
-    /* @__PURE__ */ jsxs("body", { className: "min-h-dvh bg-neutral-950 text-white antialiased", children: [
-      /* @__PURE__ */ jsx(Outlet, {}),
-      /* @__PURE__ */ jsx(ScrollRestoration, {}),
-      /* @__PURE__ */ jsx(Scripts, {})
-    ] })
-  ] });
-}
-
-const route0 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  Head,
-  default: App
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const DEFAULT_THEME = "light";
-const themeStore = atom(initStore());
-function initStore() {
-  return DEFAULT_THEME;
-}
-
 async function handleRequest(request, responseStatusCode, responseHeaders, remixContext, _loadContext) {
-  const readable = await renderToReadableStream(/* @__PURE__ */ jsx(RemixServer, { context: remixContext, url: request.url }), {
-    signal: request.signal,
-    onError(error) {
-      console.error(error);
-      responseStatusCode = 500;
-    }
-  });
-  const body = new ReadableStream({
-    start(controller) {
-      const head = renderHeadToString({ request, remixContext, Head });
-      controller.enqueue(
-        new Uint8Array(
-          new TextEncoder().encode(
-            `<!DOCTYPE html><html lang="en" data-theme="${themeStore.value}"><head>${head}</head><body><div id="root" class="w-full h-full">`
-          )
-        )
-      );
-      const reader = readable.getReader();
-      function read() {
-        reader.read().then(({ done, value }) => {
-          if (done) {
-            controller.enqueue(new Uint8Array(new TextEncoder().encode(`</div></body></html>`)));
-            controller.close();
-            return;
-          }
-          controller.enqueue(value);
-          read();
-        }).catch((error) => {
-          controller.error(error);
-          readable.cancel();
-        });
+  const serverExports = ReactDOMServer;
+  const browserServerExports = ReactDOMServerBrowser;
+  const renderToReadableStream = typeof serverExports.renderToReadableStream === "function" ? serverExports.renderToReadableStream : browserServerExports.renderToReadableStream;
+  const readable = await renderToReadableStream(
+    /* @__PURE__ */ jsx(RemixServer, { context: remixContext, url: request.url }),
+    {
+      signal: request.signal,
+      onError(error) {
+        console.error(error);
+        responseStatusCode = 500;
       }
-      read();
-    },
-    cancel() {
-      readable.cancel();
     }
-  });
+  );
   if (isbot(request.headers.get("user-agent") || "")) {
     await readable.allReady;
   }
   responseHeaders.set("Content-Type", "text/html");
   responseHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
   responseHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
-  return new Response(body, {
+  return new Response(readable, {
     headers: responseHeaders,
     status: responseStatusCode
   });
@@ -96,6 +42,63 @@ async function handleRequest(request, responseStatusCode, responseHeaders, remix
 const entryServer = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: handleRequest
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const kTheme = "bolt_theme";
+const DEFAULT_THEME = "light";
+atom(initStore());
+function initStore() {
+  return DEFAULT_THEME;
+}
+
+const themeInitScript = `(() => {
+  try {
+    const storedTheme = localStorage.getItem(${JSON.stringify(kTheme)});
+    if (storedTheme) {
+      document.documentElement.setAttribute('data-theme', storedTheme);
+    }
+  } catch {}
+})();`;
+const links = () => [
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" }
+];
+function App() {
+  return /* @__PURE__ */ jsx(Outlet, {});
+}
+function Layout({ children }) {
+  return /* @__PURE__ */ jsxs("html", { lang: "en", "data-theme": DEFAULT_THEME, children: [
+    /* @__PURE__ */ jsxs("head", { children: [
+      /* @__PURE__ */ jsx(Meta, {}),
+      /* @__PURE__ */ jsx(Links, {}),
+      /* @__PURE__ */ jsx("script", { dangerouslySetInnerHTML: { __html: themeInitScript } })
+    ] }),
+    /* @__PURE__ */ jsxs("body", { className: "min-h-dvh bg-neutral-950 text-white antialiased", children: [
+      /* @__PURE__ */ jsx("div", { id: "root", className: "h-full w-full", children }),
+      /* @__PURE__ */ jsx(ScrollRestoration, {}),
+      /* @__PURE__ */ jsx(Scripts, {})
+    ] })
+  ] });
+}
+function ErrorBoundary() {
+  const error = useRouteError();
+  let message = "Something went wrong";
+  if (isRouteErrorResponse(error)) {
+    message = `${error.status} ${error.statusText}`;
+  } else if (error instanceof Error) {
+    message = error.message;
+  }
+  return /* @__PURE__ */ jsx(Layout, { children: /* @__PURE__ */ jsxs("div", { className: "flex h-full flex-col items-center justify-center gap-2 p-6 text-center", children: [
+    /* @__PURE__ */ jsx("h1", { className: "text-2xl font-semibold", children: "Application error" }),
+    /* @__PURE__ */ jsx("p", { className: "max-w-lg text-balance text-neutral-300", children: message })
+  ] }) });
+}
+
+const route0 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  ErrorBoundary,
+  Layout,
+  default: App,
+  links
 }, Symbol.toStringTag, { value: 'Module' }));
 
 function getAPIKey(cloudflareEnv) {
@@ -974,14 +977,14 @@ const route3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   loader
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const serverManifest = {'entry':{'module':'/assets/entry.client-B6sKpTHs.js','imports':['/assets/components-BGHgjcK3.js'],'css':['/assets/__uno-CiRtdAq4.css']},'routes':{'root':{'id':'root','parentId':undefined,'path':'','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/root-Bc5vqUK2.js','imports':['/assets/components-BGHgjcK3.js'],'css':['/assets/__uno-CiRtdAq4.css']},'routes/api.enhancer':{'id':'routes/api.enhancer','parentId':'root','path':'api/enhancer','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/api.enhancer-l0sNRNKZ.js','imports':[],'css':[]},'routes/app.chat':{'id':'routes/app.chat','parentId':'root','path':'app/chat','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/app.chat-l0sNRNKZ.js','imports':[],'css':[]},'routes/chat.$id':{'id':'routes/chat.$id','parentId':'root','path':'chat/:id','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/chat._id-Gj-AyoRW.js','imports':['/assets/components-BGHgjcK3.js','/assets/_index-094Tk7yO.js'],'css':['/assets/_index-C3nBTdmK.css']},'routes/_index':{'id':'routes/_index','parentId':'root','path':undefined,'index':true,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/_index-B3Xgmij8.js','imports':['/assets/components-BGHgjcK3.js','/assets/_index-094Tk7yO.js'],'css':['/assets/_index-C3nBTdmK.css']}},'url':'/assets/manifest-a2fe7e12.js','version':'a2fe7e12'};
+const serverManifest = {'entry':{'module':'/assets/entry.client-CjSHOzOP.js','imports':['/assets/components-DfjO86aM.js'],'css':['/assets/__uno-SwipgEyW.css']},'routes':{'root':{'id':'root','parentId':undefined,'path':'','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':true,'module':'/assets/root-B9nMHUOm.js','imports':['/assets/components-DfjO86aM.js','/assets/theme-B3J57z1v.js'],'css':['/assets/__uno-SwipgEyW.css']},'routes/api.enhancer':{'id':'routes/api.enhancer','parentId':'root','path':'api/enhancer','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/api.enhancer-l0sNRNKZ.js','imports':[],'css':[]},'routes/app.chat':{'id':'routes/app.chat','parentId':'root','path':'app/chat','index':undefined,'caseSensitive':undefined,'hasAction':true,'hasLoader':false,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/app.chat-l0sNRNKZ.js','imports':[],'css':[]},'routes/chat.$id':{'id':'routes/chat.$id','parentId':'root','path':'chat/:id','index':undefined,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/chat._id-Nq5aHB0q.js','imports':['/assets/components-DfjO86aM.js','/assets/theme-B3J57z1v.js','/assets/_index-CJJe-0Nq.js'],'css':['/assets/_index-C3nBTdmK.css']},'routes/_index':{'id':'routes/_index','parentId':'root','path':undefined,'index':true,'caseSensitive':undefined,'hasAction':false,'hasLoader':true,'hasClientAction':false,'hasClientLoader':false,'hasErrorBoundary':false,'module':'/assets/_index-D8GfRUro.js','imports':['/assets/components-DfjO86aM.js','/assets/theme-B3J57z1v.js','/assets/_index-CJJe-0Nq.js'],'css':['/assets/_index-C3nBTdmK.css']}},'url':'/assets/manifest-beaf6609.js','version':'beaf6609'};
 
 /**
        * `mode` is only relevant for the old Remix compiler but
        * is included here to satisfy the `ServerBuild` typings.
        */
       const mode = "production";
-      const assetsBuildDirectory = "build\\client";
+      const assetsBuildDirectory = "build/client";
       const basename = "/";
       const future = {"v3_fetcherPersist":true,"v3_relativeSplatPath":true,"v3_throwAbortReason":true,"unstable_singleFetch":false,"unstable_fogOfWar":false};
       const isSpaMode = false;
