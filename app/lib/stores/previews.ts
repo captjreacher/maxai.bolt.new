@@ -35,13 +35,16 @@ export class PreviewsStore {
       const previews = this.previews.get();
 
       if (!previewInfo) {
-        previewInfo = { port, ready: type === 'open', baseUrl: url };
+        previewInfo = { port, ready: type === 'open', baseUrl: type === 'open' ? url : '' };
         this.#availablePreviews.set(port, previewInfo);
         previews.push(previewInfo);
       }
 
       previewInfo.ready = type === 'open';
-      previewInfo.baseUrl = url;
+
+      if (type === 'open') {
+        previewInfo.baseUrl = url;
+      }
 
       this.previews.set([...previews]);
     });
