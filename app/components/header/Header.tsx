@@ -24,9 +24,9 @@ export function Header() {
           <span className="i-bolt:logo-text?mask w-[46px] inline-block" />
         </a>
       </div>
-      <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
+      <div className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
         <ClientOnly>{() => <ChatDescription />}</ClientOnly>
-      </span>
+      </div>
       {chat.started && (
         <ClientOnly>
           {() => (

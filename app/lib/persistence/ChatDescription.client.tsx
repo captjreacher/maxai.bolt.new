@@ -2,5 +2,7 @@ import { useStore } from '@nanostores/react';
 import { description } from './useChatHistory';
 
 export function ChatDescription() {
-  return useStore(description);
+  const desc = useStore(description);
+
+  return <p className="truncate">{desc}</p>;
 }
