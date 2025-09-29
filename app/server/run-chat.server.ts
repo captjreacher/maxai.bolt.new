@@ -3,7 +3,9 @@ import { CONTINUE_PROMPT } from "~/lib/.server/llm/prompts";
 import { streamText, type Messages, type StreamingOptions } from "~/lib/.server/llm/stream-text";
 import SwitchableStream from "~/lib/.server/llm/switchable-stream";
 
-type Env = Record<string, unknown>;
+type Env = Record<string, unknown> & {
+  ANTHROPIC_API_KEY: string;
+};
 
 export async function runChat(
   messages: Messages,
