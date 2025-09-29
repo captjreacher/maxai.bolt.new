@@ -32,7 +32,11 @@ export const links: LinksFunction = () => [
 
 // 👇 This is what entry.server.tsx expects to exist
 export default function App() {
-  return <Outlet />;
+  return (
+    <Layout>
+      <Outlet />
+    </Layout>
+  );
 }
 
 export function Layout({ children }: { children: ReactNode }) {
